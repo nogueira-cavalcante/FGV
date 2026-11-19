@@ -1,0 +1,12 @@
+{
+  "search_space": {
+    "ridge__alpha": "Real(low=0.001, high=1000.0, prior='log-uniform', transform='normalize')",
+    "ridge__fit_intercept": "Categorical(categories=(True, False), prior=None)",
+    "ridge__tol": "Real(low=1e-05, high=0.01, prior='log-uniform', transform='normalize')"
+  },
+  "best_params": {
+    "ridge__alpha": 62.7076678988192,
+    "ridge__fit_intercept": true,
+    "ridge__tol": 0.0003800674800490907
+  }
+}

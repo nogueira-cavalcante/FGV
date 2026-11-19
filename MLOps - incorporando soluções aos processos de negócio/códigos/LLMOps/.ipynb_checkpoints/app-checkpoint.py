@@ -79,7 +79,7 @@ Resposta: [resposta clara e objetiva, com condições ou ressalvas relevantes]
 
 Fundamento: [pequeno trecho literal do regulamento, se disponível]
 
-Página: [número da página, somente se identificável]
+Página encontrada no Regulamento: [número da página, somente se identificável]
 
 Se a pergunta estiver inteiramente fora do contexto, use apenas a frase
 indicada na regra 2.
@@ -102,7 +102,7 @@ Resposta: Sim, a cobertura inclui danos causados por incêndio ao imóvel segura
 
 Fundamento: "A cobertura inclui danos causados por incêndio ao imóvel segurado."
 
-Página: 4
+Página encontrada no Regulamento: 4
 
 ### Exemplo 2 — Informação não encontrada
 
@@ -129,7 +129,7 @@ O trecho fornecido não informa o prazo para pagamento da indenização.
 
 Fundamento: "A cobertura inclui danos causados por incêndio ao imóvel segurado."
 
-Página: 3
+Páginas encontradas no Regulamento: 3 e 4
 
 ## Dados para a resposta real
 

@@ -1,0 +1,12 @@
+{
+  "search_space": {
+    "xgboost__n_estimators": "Integer(low=100, high=500, prior='uniform', transform='normalize')",
+    "xgboost__max_depth": "Integer(low=2, high=8, prior='uniform', transform='normalize')",
+    "xgboost__learning_rate": "Real(low=0.01, high=0.3, prior='log-uniform', transform='normalize')"
+  },
+  "best_params": {
+    "xgboost__learning_rate": 0.09162566697016207,
+    "xgboost__max_depth": 6,
+    "xgboost__n_estimators": 500
+  }
+}
