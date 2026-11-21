@@ -1,0 +1,5 @@
+Link da plataforma: https://www6.fgv.br/tic/identitymanager/unifiedlogon?id=8678cfa9-6c76-460e-b0d6-e157f6e45ae2&returnUrl=https://app-ide.fgv.br/SVP2/MainFlow.Login.aspx?token=
+
+Login: ext.joao.cavalcante@prof.fgv.edu.br
+Password: #Fl1m2ng4#
+
