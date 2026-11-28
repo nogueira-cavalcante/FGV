@@ -21,18 +21,19 @@ from pypdf import PdfReader
 load_dotenv()
 st.set_page_config(page_title="Consulta ao regulamento")
 
-# Caminhos são relativos a este arquivo, não ao diretório de execução do comando.
 BASE_DIR = Path(__file__).resolve().parent
 PDF_PATH = BASE_DIR / "Regulamento de Seguro Fictício.pdf"
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
 # SQLite local permite persistir execuções e versões entre reinicializações.
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", f"sqlite:///{BASE_DIR / 'mlflow.db'}")
 REGISTERED_MODEL = "consulta-regulamento-seguro"
 TEMPERATURE = 0.2
-# Os feedbacks ficam em um arquivo local ao lado do aplicativo.
+
+# Definição dos arquivo de saída dos feedbacks.
 FEEDBACK_PATH = BASE_DIR / "feedback_respostas.xlsx"
 
-# Este template é salvo no MLflow e usado pelo modelo registrado.
+# Definição do prompt.
 PROMPT_TEMPLATE = """
 Você é uma analista de seguros responsável por responder perguntas sobre
 regulamentos de seguros.
@@ -142,30 +143,18 @@ Pergunta:
 Responda agora à pergunta real, seguindo as regras acima
 """
 
-# Classe do agente de IA
+# Classe do agente de IA.
 class ConsultaSeguro(mlflow.pyfunc.PythonModel):
-    """Adaptador MLflow para consultar o Gemini com os artefatos da versão.
-
-    O MLflow serializa este objeto e associa a ele os arquivos do texto e do
-    prompt. Ao carregá-lo posteriormente, load_context recupera esses arquivos.
-    A chave da API é lida apenas no momento da consulta.
-    """
 
     def __init__(self, model_name, temperature):
         self.model_name = model_name
         self.temperature = temperature
 
     def load_context(self, context):
-        """Lê os artefatos que pertencem à versão carregada do modelo."""
         self.regulamento = Path(context.artifacts["texto"]).read_text(encoding="utf-8")
         self.template = Path(context.artifacts["prompt"]).read_text(encoding="utf-8")
 
     def predict(self, context, model_input, params=None):
-        """Recebe um DataFrame com a coluna 'pergunta' e retorna respostas.
-
-        Cada linha gera uma chamada separada ao Gemini. O argumento params faz
-        parte da interface do MLflow; os parâmetros usados estão na versão.
-        """
         chave = os.getenv("GEMINI_API_KEY")
         if not chave:
             raise ValueError("Defina GEMINI_API_KEY no ambiente ou no arquivo .env.")
@@ -186,11 +175,6 @@ class ConsultaSeguro(mlflow.pyfunc.PythonModel):
 
 @st.cache_data(show_spinner="Lendo o PDF...")
 def extrair_pdf(pdf_bytes):
-    """Extrai texto por página; o cache é invalidado se os bytes mudarem.
-
-    Retorna (texto_com_marcadores_de_pagina, quantidade_de_paginas).
-    PDFs compostos somente de imagens exigem OCR antes desta etapa.
-    """
     leitor = PdfReader(io.BytesIO(pdf_bytes))
     paginas = []
     for numero, pagina in enumerate(leitor.pages, start=1):
@@ -201,17 +185,6 @@ def extrair_pdf(pdf_bytes):
 
 
 def obter_ou_registrar_versao(pdf_bytes, texto, total_paginas):
-    """Encontra ou registra uma versão MLflow para o snapshot atual.
-
-    O hash reúne o código deste arquivo, o PDF, o prompt e os parâmetros do
-    modelo. Cada componente é prefixado por seu tamanho para evitar ambiguidades
-    na concatenação. Uma tag na versão registrada permite encontrar o snapshot.
-
-    Retorna (versao_numerica_como_texto, id_da_execucao).
-
-    Observação: a consulta e o registro não são uma operação atômica. Acessos
-    simultâneos podem registrar versões duplicadas para o mesmo snapshot.
-    """
     codigo = Path(__file__).read_bytes()
     componentes = [
         codigo, pdf_bytes, PROMPT_TEMPLATE.encode("utf-8"),
@@ -227,7 +200,6 @@ def obter_ou_registrar_versao(pdf_bytes, texto, total_paginas):
     mlflow.set_experiment("llmops-regulamento-seguro")
     cliente = MlflowClient()
 
-    # Percorre todas as páginas de versões para procurar um snapshot pronto.
     token = None
     while True:
         pagina = cliente.search_model_versions(
@@ -242,8 +214,6 @@ def obter_ou_registrar_versao(pdf_bytes, texto, total_paginas):
         if not token:
             break
 
-    # Cria arquivos temporários para o MLflow copiar ao armazenamento de artefatos.
-    # O diretório temporário é apagado após o registro.
     with tempfile.TemporaryDirectory() as pasta:
         pasta = Path(pasta)
         (pasta / "regulamento.pdf").write_bytes(pdf_bytes)
@@ -251,8 +221,6 @@ def obter_ou_registrar_versao(pdf_bytes, texto, total_paginas):
         (pasta / "prompt.txt").write_text(PROMPT_TEMPLATE, encoding="utf-8")
         (pasta / "app.py").write_bytes(codigo)
 
-        # A execução registra parâmetros e artefatos; o Model Registry, por sua
-        # vez, atribui o número da versão ao modelo associado a essa execução.
         with mlflow.start_run(run_name="snapshot-regulamento") as run:
             mlflow.log_params({
                 "model": MODEL,
@@ -286,12 +254,6 @@ def obter_ou_registrar_versao(pdf_bytes, texto, total_paginas):
 
 
 def salvar_feedback_excel(versao, pergunta, resposta, gostou, latencia_segundos):
-    """Acrescenta uma avaliação à planilha, criando-a se necessário.
-
-    A substituição do arquivo ocorre somente depois de salvar uma cópia
-    temporária. Esta solução é adequada para uso local com um usuário;
-    acessos simultâneos exigem bloqueio ou um banco de dados.
-    """
     colunas_anteriores = ["versão do mlflow", "pergunta feita", "resposta gerada",
                           "usuário gostou da resposta"]
     colunas = colunas_anteriores + ["latência da resposta (segundos)"]
@@ -312,12 +274,10 @@ def salvar_feedback_excel(versao, pergunta, resposta, gostou, latencia_segundos)
         planilha.append(colunas)
         planilha.freeze_panes = "A2"
 
-    # Escreve explicitamente como texto, inclusive entradas iniciadas com "=",
-    # para que conteúdo do usuário não seja interpretado como fórmula no Excel.
     planilha.append([str(versao), pergunta, resposta, gostou, float(latencia_segundos)])
     for celula in list(planilha[planilha.max_row])[:4]:
         celula.data_type = "s"
-    # A latência permanece numérica para permitir cálculos no Excel.
+
     planilha.cell(planilha.max_row, 5).number_format = "0.00"
 
     arquivo_temporario = None
@@ -335,7 +295,6 @@ def salvar_feedback_excel(versao, pergunta, resposta, gostou, latencia_segundos)
 
 
 def enviar_feedback():
-    """Executada antes do redesenho, permitindo limpar o campo de pergunta."""
     st.session_state["pergunta_input"] = ""
     escolha = st.session_state.get("feedback_escolha")
     if escolha not in ("Sim", "Não"):
@@ -362,9 +321,6 @@ def enviar_feedback():
                   "latencia_segundos", "feedback_escolha"):
         st.session_state.pop(chave, None)
 
-
-# O Streamlit executa este arquivo novamente após cada interação. O cache da
-# extração e a busca pelo snapshot evitam reextrair e registrar versões à toa.
 if "feedback_mensagem" in st.session_state:
     tipo, mensagem = st.session_state.pop("feedback_mensagem")
     getattr(st, tipo)(mensagem)
@@ -392,7 +348,6 @@ except Exception as exc:
     st.error(f"Não foi possível consultar ou registrar a versão no MLflow: {exc}")
     st.stop()
 
-# Mostra o número da versão registrada, que é diferente da versão da biblioteca.
 st.sidebar.success(f"PDF carregado: {PDF_PATH.name} ({total_paginas} páginas)")
 st.sidebar.metric("Versão registrada no MLflow", versao)
 st.sidebar.caption(f"Modelo: {REGISTERED_MODEL}")
@@ -402,7 +357,6 @@ st.sidebar.caption(f"Biblioteca MLflow: {mlflow.__version__}")
 with st.expander("Visualizar o texto extraído do PDF"):
     st.text(texto)
 
-# O formulário envia a pergunta somente quando o usuário clica no botão.
 with st.form("pergunta_form"):
     pergunta = st.text_area("Qual é a sua pergunta sobre o seguro?", key="pergunta_input")
     enviar = st.form_submit_button("Perguntar")
@@ -440,8 +394,6 @@ if st.session_state.get("resposta") and st.session_state.get("versao_resposta") 
 
     st.caption(f"Latência da consulta ao modelo: {st.session_state['latencia_segundos']:.2f} segundos")
 
-    # O formulário de avaliação se refere à pergunta que gerou esta resposta,
-    # mesmo se o usuário editar o campo de pergunta antes de enviar o feedback.
     with st.form("feedback_form"):
         st.radio(
             "Você gostou da resposta gerada?",

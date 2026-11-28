@@ -30,7 +30,7 @@ mlflow.set_tracking_uri(
 )
 
 MODEL_NAME = "CaliforniaHousing"
-MODEL_VERSION = "2"
+MODEL_VERSION = "4"
 MODEL_URI = f"models:/{MODEL_NAME}/{MODEL_VERSION}"
 MODEL = "xgboost"
 HISTORY_PATH = PROJECT_DIR / "historico_inferencias.xlsx"
